@@ -72,7 +72,7 @@ const TIKTOK_ACTOR_ID = env.TIKTOK_ACTOR_ID || 'clockworks/tiktok-scraper'
 const BUCKET = 'thumbnails'
 const TECHNIQUES = [
   'Match Cut', 'Masking', 'Remove BG', 'Speed Tool',
-  'Reverse', 'Green Screen', 'Splice', 'Color Change',
+  'Reverse', 'Green Screen', 'Splice', 'Color Change', 'Keyframes',
 ]
 
 // Matches a manually-typed technique to its canonical casing (e.g. "masking"
@@ -102,6 +102,15 @@ async function scrape(url) {
     title: item.caption?.slice(0, 120) || item.text?.slice(0, 120) || '(no caption)',
     caption: item.caption || item.text || '',
     thumbnailUrl: item.displayUrl || item.thumbnailUrl || item.videoMeta?.coverUrl || null,
+    // apify/instagram-reel-scraper returns videoPlayCount (the public "plays"
+    // number shown on the reel) AND a separate, smaller videoViewCount —
+    // we use videoPlayCount as views_count since it's the one Instagram
+    // surfaces publicly. clockworks/tiktok-scraper's field names (playCount
+    // etc.) are unverified — same caveat as TIKTOK_ACTOR_ID above, confirm
+    // once we test a real TikTok link.
+    viewsCount: item.videoPlayCount ?? item.playCount ?? item.videoViewCount ?? null,
+    likesCount: item.likesCount ?? item.diggCount ?? null,
+    commentsCount: item.commentsCount ?? item.commentCount ?? null,
   }
 }
 
@@ -239,6 +248,9 @@ async function processRow(raw) {
     main_tool_used: finalTechniques.join(', '),
     skill_level: finalSkill || null,
     reference_tutorial: referenceTutorial,
+    views_count: scraped.viewsCount,
+    likes_count: scraped.likesCount,
+    comments_count: scraped.commentsCount,
   }
 
   const { data: saved, error: saveError } = isUpdate

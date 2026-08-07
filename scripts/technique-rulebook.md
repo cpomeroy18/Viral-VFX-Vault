@@ -55,7 +55,14 @@ Most effects use ONE main technique; some combine two (tag main + backup). Multi
 **Distinguisher:** NOT a match cut (nothing cut and joined in sequence — one clip sits on top of another); NOT masking (no shape drawn; the blend mode hides the background by light/dark).
 **Note:** rare (currently one effect), expected to grow.
 
-## 8. Color Change
+## 8. Keyframes
+**What it is:** A property (position, scale, crop/frame, or similar) is animated to change over time via markers on the timeline — a "start state" and "end state" are set, and the edit moves between them, smoothly or step-wise.
+**Tells (any):** the frame/crop shifts or repositions triggered by an action (e.g. horizontal footage reframed in a vertical video, shifting down slightly each time the subject jumps, then holding until the next trigger); an element's size, position, or crop visibly changes over the course of the clip rather than staying fixed.
+**Distinguisher from Speed Tool:** Speed Tool changes *how fast time plays back* (the footage itself speeds up/slows down). Keyframes changes *a property's value* over time (position, scale, crop) — playback speed stays normal.
+**Distinguisher from Masking:** Masking is typically a shape drawn once to reveal/hide part of the frame. Keyframes is about *animating* a property's change over time — very often the thing doing the combining (e.g. "Masking, Keyframes" = a mask whose position/size itself moves). Expect this combo often.
+**Exemplar:** horizontal video reframed inside a vertical crop; each time the subject jumps, the crop shifts down slightly and holds until the next jump.
+
+## 9. Color Change
 **What it is:** Colors are deliberately altered mid-clip — recoloring a specific object or shifting the whole frame's color — usually as a reveal or transition.
 **Tells (any):** an object changes color over time (shirt blue→red, outfit green→red); a color shift triggered by a touch/gesture; a full-scene color/grade shift happening in the *middle* of the video (not a static filter).
 **Signature:** color that *changes* during the clip. A constant filter over the whole video does NOT count — it's the transition from one color state to another.
@@ -66,7 +73,8 @@ Most effects use ONE main technique; some combine two (tag main + backup). Multi
 
 ## Base-rate notes for the AI (reduces false positives)
 - **Common:** Match Cut, Masking, Remove BG, Speed Tool.
-- **Uncommon:** Green Screen, Reverse, Splice, Color Change — require a clear tell, don't guess them on weak evidence.
+- **Uncommon:** Green Screen, Reverse, Splice, Color Change, Keyframes — require a clear tell, don't guess them on weak evidence.
+- Keyframes very often pairs with Masking (an animated mask) — expect the combo.
 - When torn between Remove BG and Green Screen → Remove BG.
 - A static color filter is NOT Color Change.
 - A plain overlay blend is NOT a Match Cut.

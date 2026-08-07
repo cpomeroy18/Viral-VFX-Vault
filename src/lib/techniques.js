@@ -9,6 +9,7 @@ export const TECHNIQUES = {
   'Green Screen':  { hex: '#3eff7a', label: 'Green Screen' },
   'Splice':        { hex: '#ff3ea5', label: 'Splice' },
   'Color Change':  { hex: '#3effe0', label: 'Color Change' },
+  'Keyframes':     { hex: '#ffe63e', label: 'Keyframes' },
 }
 
 export const DEFAULT_TECHNIQUE = { hex: '#6b6b70', label: 'Other' }
