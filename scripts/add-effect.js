@@ -1,13 +1,14 @@
 // scripts/add-effect.js
 //
 // The core "add new effect" pipeline:
-//   1. You paste rows: link, technique(s), skill (technique/skill optional)
-//      — comma- or tab-separated (tab-separated works with a direct paste
-//      from a spreadsheet)
+//   1. You paste rows: link, technique(s), skill, best_match_tutorial_url,
+//      niche, use_case(s) (everything but the link is optional) — comma- or
+//      tab-separated (tab-separated works with a direct paste from a
+//      spreadsheet)
 //   2. Each link gets scraped via Apify (caption, thumbnail)
-//   3. If technique/skill were given on the row, they're used as-is.
-//      Any left blank get filled in by Claude reading the caption against
-//      technique-rulebook.md — no confirmation prompt, it just runs.
+//   3. If technique/skill/niche/use_case were given on the row, they're used
+//      as-is. Any left blank get filled in by Claude reading the caption
+//      against technique-rulebook.md — no confirmation prompt, it just runs.
 //   4. Thumbnail gets rehosted permanently, row gets written to Supabase
 //
 // This auto-publishes every row that scrapes successfully. Anything Claude
@@ -26,8 +27,19 @@
 //     https://www.instagram.com/reel/XXXX/,Match Cut,Easy
 //     https://www.instagram.com/reel/YYYY/
 //     https://www.instagram.com/reel/ZZZZ/,Masking;Remove BG,Medium
-//   (multiple techniques within one field are separated by ";" regardless
-//   of whether the row itself uses commas or tabs)
+//     https://www.instagram.com/reel/WWWW/,Match Cut,Easy,https://youtu.be/some-specific-tutorial
+//     https://www.instagram.com/reel/VVVV/,Match Cut,Easy,,Fitness,Hook/Attention-Grabber;Outfit/Clothing Reveal
+//   (multiple values within the technique or use_case fields are separated
+//   by ";" regardless of whether the row itself uses commas or tabs; niche
+//   is single-value, like skill. Leave a field blank between two commas to
+//   skip it while still supplying a later column, as in the last example
+//   above which skips best_match_tutorial_url.)
+//   Re-pasting a link that's already saved updates that row instead of
+//   duplicating it — handy for adding just a best_match_tutorial_url later.
+//   Note: technique/skill/niche/use_case work differently — leaving those
+//   blank still triggers a fresh AI guess that overwrites the existing
+//   value (see below), so repeat the existing value on the row if you only
+//   want to add a tutorial URL.
 //   Blank line to finish and start processing.
 
 import { createClient } from '@supabase/supabase-js'
@@ -75,13 +87,30 @@ const TECHNIQUES = [
   'Reverse', 'Green Screen', 'Splice', 'Color Change', 'Keyframes',
 ]
 
-// Matches a manually-typed technique to its canonical casing (e.g. "masking"
-// -> "Masking") so a spreadsheet typo doesn't silently break the
-// technique-tutorials.json lookup or fragment the tag in the DB.
-const TECHNIQUES_LOWER = new Map(TECHNIQUES.map((t) => [t.toLowerCase(), t]))
-function canonicalizeTechnique(name) {
-  return TECHNIQUES_LOWER.get(name.toLowerCase()) || name
+const NICHES = [
+  'Fitness', 'Beauty/Skincare', 'Fashion', 'Food/Cooking', 'Real Estate',
+  'Restaurant/Bar', 'Tattoo Shop', 'Barber/Salon', 'Travel', 'Comedy',
+  'Personal Finance', 'Home/DIY', 'Automotive', 'Pets', 'Parenting/Family',
+  'Tech/App', 'Music', 'Sports', 'Video/Editing', 'Storytelling/Personality',
+  'Vlog/Personal', 'Other',
+]
+
+const USE_CASES = [
+  'Hook/Attention-Grabber', 'Outfit/Clothing Reveal', 'Product Showcase',
+  'Before/After Reveal', 'Comedic Punchline', 'Storytelling Beat',
+  'Transition Between Scenes', 'Spice-Up/Rewatch Value', 'Call-to-Action Moment',
+]
+
+// Matches a manually-typed value to its canonical casing (e.g. "masking" ->
+// "Masking") so a spreadsheet typo doesn't silently break a lookup or
+// fragment the tag in the DB.
+function makeCanonicalizer(list) {
+  const lower = new Map(list.map((v) => [v.toLowerCase(), v]))
+  return (name) => lower.get(name.toLowerCase()) || name
 }
+const canonicalizeTechnique = makeCanonicalizer(TECHNIQUES)
+const canonicalizeNiche = makeCanonicalizer(NICHES)
+const canonicalizeUseCase = makeCanonicalizer(USE_CASES)
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -128,10 +157,12 @@ Return this exact JSON shape:
 {
   "techniques": [{"name": "<one of: ${TECHNIQUES.join(', ')}>", "confidence": <0-100>}],
   "skill_level": "<Easy|Medium|Advanced>",
+  "niche": {"name": "<one of: ${NICHES.join(', ')}>", "confidence": <0-100>},
+  "use_cases": [{"name": "<one of: ${USE_CASES.join(', ')}>", "confidence": <0-100>}],
   "reasoning": "<one sentence>"
 }
 
-Only include techniques you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing.`
+"niche" is the type of creator/business the video is for — pick exactly one, "Other" if nothing fits. "use_cases" is what the effect is doing for the video (can be more than one). Only include techniques/use_cases you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing.`
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -153,7 +184,10 @@ Only include techniques you have real signal for from the caption. If the captio
   try {
     return JSON.parse(cleaned)
   } catch {
-    return { techniques: [], skill_level: 'Medium', reasoning: 'Could not parse AI response — please tag manually.' }
+    return {
+      techniques: [], skill_level: 'Medium', niche: null, use_cases: [],
+      reasoning: 'Could not parse AI response — please tag manually.',
+    }
   }
 }
 
@@ -173,24 +207,35 @@ async function uploadThumbnail(effectId, imageBuffer) {
   return data.publicUrl
 }
 
-// Row format: link, technique(s), skill — technique/skill optional.
-// Separator is a tab if the row has one (spreadsheet paste), else a comma.
-// Multiple techniques within the technique field are always ";"-separated,
-// regardless of the row separator, so they don't collide with a comma-separated row.
+// Row format: link, technique(s), skill, best_match_tutorial_url, niche,
+// use_case(s) — all but the link are optional. Separator is a tab if the
+// row has one (spreadsheet paste), else a comma. Multiple values within the
+// technique or use_case fields are always ";"-separated, regardless of the
+// row separator, so they don't collide with a comma-separated row. niche is
+// single-value, like skill.
 function parseRow(raw) {
   const sep = raw.includes('\t') ? '\t' : ','
-  const [urlRaw, techniqueRaw, skillRaw] = raw.split(sep)
+  const [urlRaw, techniqueRaw, skillRaw, bestMatchTutorialRaw, nicheRaw, useCaseRaw] = raw.split(sep)
   const url = (urlRaw || '').trim()
   const techniques = (techniqueRaw || '')
     .split(';')
     .map((t) => t.trim())
     .filter(Boolean)
   const skill = (skillRaw || '').trim()
-  return { url, techniques, skill }
+  const bestMatchTutorialUrl = (bestMatchTutorialRaw || '').trim()
+  const niche = (nicheRaw || '').trim()
+  const useCases = (useCaseRaw || '')
+    .split(';')
+    .map((u) => u.trim())
+    .filter(Boolean)
+  return { url, techniques, skill, bestMatchTutorialUrl, niche, useCases }
 }
 
 async function processRow(raw) {
-  const { url, techniques: givenTechniques, skill: givenSkill } = parseRow(raw)
+  const {
+    url, techniques: givenTechniques, skill: givenSkill, bestMatchTutorialUrl,
+    niche: givenNiche, useCases: givenUseCases,
+  } = parseRow(raw)
   if (!url) {
     console.log(`  Skipping unparseable row: "${raw}"`)
     return null
@@ -206,11 +251,15 @@ async function processRow(raw) {
 
   let finalTechniques = givenTechniques
   let finalSkill = givenSkill
+  let finalNiche = givenNiche
+  let finalUseCases = givenUseCases
   let techniqueGuessed = false
   let skillGuessed = false
+  let nicheGuessed = false
+  let useCaseGuessed = false
 
   // Only call out to Claude for whatever wasn't supplied on the row.
-  if (givenTechniques.length === 0 || !givenSkill) {
+  if (givenTechniques.length === 0 || !givenSkill || !givenNiche || givenUseCases.length === 0) {
     console.log('Asking Claude to suggest tags...')
     const suggestion = await suggestTags(scraped.caption)
 
@@ -223,10 +272,21 @@ async function processRow(raw) {
       finalSkill = suggestion.skill_level || 'Medium'
       skillGuessed = true
     }
+    if (!givenNiche) {
+      finalNiche = suggestion.niche?.name || ''
+      nicheGuessed = true
+    }
+    if (givenUseCases.length === 0) {
+      const top = [...(suggestion.use_cases || [])].sort((a, b) => b.confidence - a.confidence)[0]
+      finalUseCases = top ? [top.name] : []
+      useCaseGuessed = true
+    }
   }
 
-  const aiGuessed = techniqueGuessed || skillGuessed
+  const aiGuessed = techniqueGuessed || skillGuessed || nicheGuessed || useCaseGuessed
   finalTechniques = finalTechniques.map(canonicalizeTechnique)
+  finalNiche = finalNiche ? canonicalizeNiche(finalNiche) : finalNiche
+  finalUseCases = finalUseCases.map(canonicalizeUseCase)
 
   // Auto-fill the generic tutorial link from the first technique.
   const referenceTutorial = tutorialMap[finalTechniques[0]] || null
@@ -251,6 +311,11 @@ async function processRow(raw) {
     views_count: scraped.viewsCount,
     likes_count: scraped.likesCount,
     comments_count: scraped.commentsCount,
+    niche: finalNiche || null,
+    use_case: finalUseCases.join(', ') || null,
+    // Only set when given — blank/missing means "leave untouched", not
+    // "clear it out", especially on update.
+    ...(bestMatchTutorialUrl ? { best_match_tutorial_url: bestMatchTutorialUrl } : {}),
   }
 
   const { data: saved, error: saveError } = isUpdate
@@ -274,13 +339,15 @@ async function processRow(raw) {
 
   const tagLabel = aiGuessed ? 'AI-guessed, not confirmed' : 'Manually tagged'
   const actionLabel = isUpdate ? 'Updated existing' : 'Saved new'
-  console.log(`  ${actionLabel}: "${scraped.title}" — ${finalTechniques.join(', ') || '(no technique)'} / ${finalSkill || '(no skill level)'} [${tagLabel}]`)
+  console.log(`  ${actionLabel}: "${scraped.title}" — ${finalTechniques.join(', ') || '(no technique)'} / ${finalSkill || '(no skill level)'} / ${finalNiche || '(no niche)'} / ${finalUseCases.join(', ') || '(no use case)'} [${tagLabel}]`)
 
   return {
     title: scraped.title,
     url,
     techniques: finalTechniques,
     skill: finalSkill,
+    niche: finalNiche,
+    useCases: finalUseCases,
     aiGuessed,
   }
 }
@@ -306,7 +373,7 @@ function readLinesUntilBlank(rl) {
 }
 
 async function main() {
-  console.log('Paste rows as "link, technique(s), skill" (comma- or tab-separated; technique/skill optional). Blank line when done:\n')
+  console.log('Paste rows as "link, technique(s), skill, best_match_tutorial_url, niche, use_case(s)" (comma- or tab-separated; everything but the link is optional). Blank line when done:\n')
   const rows = await readLinesUntilBlank(rl)
 
   const results = []

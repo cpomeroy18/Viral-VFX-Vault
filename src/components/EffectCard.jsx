@@ -1,9 +1,23 @@
-import { ExternalLink, Play } from 'lucide-react'
+import { ExternalLink, Play, Eye, Heart, MessageCircle } from 'lucide-react'
 import { splitTechniques, techniqueStyle } from '../lib/techniques'
+
+function formatCount(n) {
+  if (n == null) return null
+  if (n < 1000) return String(n)
+  const [divisor, suffix] = n < 1_000_000 ? [1_000, 'K'] : [1_000_000, 'M']
+  return `${(n / divisor).toFixed(1).replace(/\.0$/, '')}${suffix}`
+}
 
 export default function EffectCard({ effect }) {
   const tags = splitTechniques(effect.main_tool_used)
+  const useCases = splitTechniques(effect.use_case)
   const tutorialUrl = effect.best_match_tutorial_url || effect.reference_tutorial
+
+  const stats = [
+    { icon: Eye, value: formatCount(effect.views_count) },
+    { icon: Heart, value: formatCount(effect.likes_count) },
+    { icon: MessageCircle, value: formatCount(effect.comments_count) },
+  ].filter((s) => s.value != null)
 
   return (
     <div className="group bg-[var(--panel)] border border-[var(--line)] rounded-lg overflow-hidden hover:border-[var(--ink-dim)] transition-colors flex flex-col">
@@ -41,6 +55,12 @@ export default function EffectCard({ effect }) {
           {effect.title}
         </h3>
 
+        {effect.niche && (
+          <div className="font-mono text-[10px] tracking-widest text-[var(--ink-dim)] uppercase -mt-1">
+            {effect.niche}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-1.5">
           {tags.map((tag) => {
             const style = techniqueStyle(tag)
@@ -59,6 +79,30 @@ export default function EffectCard({ effect }) {
             )
           })}
         </div>
+
+        {useCases.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {useCases.map((useCase) => (
+              <span
+                key={useCase}
+                className="font-mono text-[10px] px-2 py-0.5 rounded-full border border-[var(--line)] text-[var(--ink-dim)] bg-[var(--panel-2)] tracking-wide"
+              >
+                {useCase}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {stats.length > 0 && (
+          <div className="flex items-center gap-3 font-mono text-[10px] text-[var(--ink-dim)]">
+            {stats.map(({ icon: Icon, value }, i) => (
+              <span key={i} className="flex items-center gap-1">
+                <Icon className="w-3 h-3" />
+                {value}
+              </span>
+            ))}
+          </div>
+        )}
 
         <a
           href={tutorialUrl}

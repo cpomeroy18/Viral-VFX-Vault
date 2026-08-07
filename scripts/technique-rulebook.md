@@ -71,6 +71,18 @@ Most effects use ONE main technique; some combine two (tag main + backup). Multi
 
 ---
 
+## Niche
+The type of creator/business the video is for. Single-value — pick exactly one, "Other" if nothing fits.
+
+Fitness, Beauty/Skincare, Fashion, Food/Cooking, Real Estate, Restaurant/Bar, Tattoo Shop, Barber/Salon, Travel, Comedy, Personal Finance, Home/DIY, Automotive, Pets, Parenting/Family, Tech/App, Music, Sports, Video/Editing, Storytelling/Personality, Vlog/Personal, Other
+
+## Use Case
+What the effect is doing for the video. Can be multiple — tag every one that clearly applies.
+
+Hook/Attention-Grabber, Outfit/Clothing Reveal, Product Showcase, Before/After Reveal, Comedic Punchline, Storytelling Beat, Transition Between Scenes, Spice-Up/Rewatch Value, Call-to-Action Moment
+
+---
+
 ## Base-rate notes for the AI (reduces false positives)
 - **Common:** Match Cut, Masking, Remove BG, Speed Tool.
 - **Uncommon:** Green Screen, Reverse, Splice, Color Change, Keyframes — require a clear tell, don't guess them on weak evidence.
