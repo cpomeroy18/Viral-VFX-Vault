@@ -77,8 +77,8 @@ const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY)
 const apify = new ApifyClient({ token: env.APIFY_TOKEN })
 
 const INSTAGRAM_ACTOR_ID = 'apify/instagram-reel-scraper'
-// Placeholder — confirm the right actor ID with Claude Code before relying
-// on TikTok links, same as we did for the Instagram one.
+// Confirmed working against a real TikTok link — see the `postURLs` input
+// field and the field-name comments in scrape() below.
 const TIKTOK_ACTOR_ID = env.TIKTOK_ACTOR_ID || 'clockworks/tiktok-scraper'
 
 const BUCKET = 'thumbnails'
@@ -127,30 +127,34 @@ function isTikTok(url) {
 
 async function scrape(url) {
   const actorId = isTikTok(url) ? TIKTOK_ACTOR_ID : INSTAGRAM_ACTOR_ID
-  const run = await apify.actor(actorId).call({
-    username: [url],
-    resultsLimit: 1,
-  })
+  // clockworks/tiktok-scraper takes direct post links on `postURLs`, not
+  // `username` (apify/instagram-reel-scraper's field) — confirmed via a
+  // real failing call: "Input must contain postURLs, hashtags, search
+  // queries, music references or profiles."
+  const input = isTikTok(url)
+    ? { postURLs: [url], resultsPerPage: 1 }
+    : { username: [url], resultsLimit: 1 }
+  const run = await apify.actor(actorId).call(input)
   const { items } = await apify.dataset(run.defaultDatasetId).listItems()
   const item = items[0]
   if (!item) return null
   return {
     title: item.caption?.slice(0, 120) || item.text?.slice(0, 120) || '(no caption)',
     caption: item.caption || item.text || '',
+    // videoMeta.coverUrl is clockworks/tiktok-scraper's thumbnail field,
+    // confirmed via a real TikTok scrape.
     thumbnailUrl: item.displayUrl || item.thumbnailUrl || item.videoMeta?.coverUrl || null,
     // apify/instagram-reel-scraper returns videoPlayCount (the public "plays"
-    // number shown on the reel) AND a separate, smaller videoViewCount —
-    // we use videoPlayCount as views_count since it's the one Instagram
-    // surfaces publicly. clockworks/tiktok-scraper's field names (playCount
-    // etc.) are unverified — same caveat as TIKTOK_ACTOR_ID above, confirm
-    // once we test a real TikTok link.
+    // number shown on the reel) AND a separate, smaller videoViewCount — we
+    // use videoPlayCount as views_count since it's the one Instagram surfaces
+    // publicly. clockworks/tiktok-scraper uses playCount/diggCount/
+    // commentCount instead — all confirmed via a real TikTok scrape.
     viewsCount: item.videoPlayCount ?? item.playCount ?? item.videoViewCount ?? null,
     likesCount: item.likesCount ?? item.diggCount ?? null,
     commentsCount: item.commentsCount ?? item.commentCount ?? null,
-    // item.timestamp (ISO string, e.g. "2026-05-11T10:22:04.000Z") is the
-    // verified field from apify/instagram-reel-scraper. createTimeISO/
-    // createTime are unverified TikTok-actor guesses — same caveat as the
-    // other clockworks/tiktok-scraper field names above.
+    // item.timestamp (ISO string) is apify/instagram-reel-scraper's field;
+    // createTimeISO is clockworks/tiktok-scraper's equivalent — both
+    // confirmed via real scrapes.
     postedAt: item.timestamp ?? item.createTimeISO ?? item.createTime ?? null,
   }
 }
@@ -270,8 +274,20 @@ async function processRow(raw) {
   let nicheGuessed = false
   let useCaseGuessed = false
 
-  // Only call out to Claude for whatever wasn't supplied on the row.
-  if (givenTechniques.length === 0 || !givenSkill || !givenNiche || givenUseCases.length === 0) {
+  const hasCaption = !!(scraped.caption && scraped.caption.trim())
+  const hasThumbnail = !!scraped.thumbnailUrl
+  const hasStats = scraped.viewsCount != null || scraped.likesCount != null || scraped.commentsCount != null
+  const insufficientData = !hasCaption && !hasThumbnail && !hasStats
+  if (insufficientData) {
+    console.log('  Insufficient data to auto-tag — needs manual review.')
+  }
+
+  const needsGuessing = givenTechniques.length === 0 || !givenSkill || !givenNiche || givenUseCases.length === 0
+
+  // Without a caption there's nothing for Claude to actually read, so
+  // guessing would just be fabricating a low-signal tag rather than a real
+  // read — leave whatever's still blank as blank instead.
+  if (needsGuessing && hasCaption) {
     console.log('Asking Claude to suggest tags...')
     const suggestion = await suggestTags(scraped.caption)
 
@@ -293,6 +309,8 @@ async function processRow(raw) {
       finalUseCases = top ? [top.name] : []
       useCaseGuessed = true
     }
+  } else if (needsGuessing && !insufficientData) {
+    console.log('  No caption available — leaving blank technique/skill/niche/use_case unset rather than guessing.')
   }
 
   const aiGuessed = techniqueGuessed || skillGuessed || nicheGuessed || useCaseGuessed
@@ -300,9 +318,11 @@ async function processRow(raw) {
   finalNiche = finalNiche ? canonicalizeNiche(finalNiche) : finalNiche
   finalUseCases = finalUseCases.map(canonicalizeUseCase)
 
-  // Auto-fill the generic tutorial link from the first technique.
-  const referenceTutorial = tutorialMap[finalTechniques[0]] || null
-  if (!referenceTutorial) {
+  // Auto-fill the generic tutorial link from the first technique. Trimmed
+  // in case technique-tutorials.json ever picks up stray whitespace — a
+  // leading space turns an absolute URL into a broken relative link.
+  const referenceTutorial = finalTechniques.length > 0 ? (tutorialMap[finalTechniques[0]] || '').trim() || null : null
+  if (finalTechniques.length > 0 && !referenceTutorial) {
     console.log(`  Note: no tutorial URL mapped for "${finalTechniques[0]}" yet — reference_tutorial will be blank. Fill it in later via Supabase, or add it to scripts/technique-tutorials.json.`)
   }
 
@@ -327,8 +347,10 @@ async function processRow(raw) {
     niche: finalNiche || null,
     use_case: finalUseCases.join(', ') || null,
     // Only set when given — blank/missing means "leave untouched", not
-    // "clear it out", especially on update.
-    ...(bestMatchTutorialUrl ? { best_match_tutorial_url: bestMatchTutorialUrl } : {}),
+    // "clear it out", especially on update. Trimmed defensively (parseRow
+    // already trims it, but a leading/trailing space here would break the
+    // link the same way as in reference_tutorial above).
+    ...(bestMatchTutorialUrl ? { best_match_tutorial_url: bestMatchTutorialUrl.trim() } : {}),
   }
 
   const { data: saved, error: saveError } = isUpdate

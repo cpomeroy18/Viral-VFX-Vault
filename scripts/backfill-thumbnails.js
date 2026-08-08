@@ -7,6 +7,9 @@
 // expire after a day or two — this script exists specifically to stop
 // relying on those.
 //
+// Works for both Instagram and TikTok links (same actor/field-name choices
+// as add-effect.js's scrape()).
+//
 // Run locally only. Never deploy this file or its .env to Vercel.
 //
 // Setup:
@@ -48,18 +51,25 @@ const apify = new ApifyClient({ token: env.APIFY_TOKEN })
 
 // Change this if you use a different scraper actor than Apify's
 // general-purpose Instagram Reel Scraper.
-const APIFY_ACTOR_ID = 'apify/instagram-reel-scraper'
+const INSTAGRAM_ACTOR_ID = 'apify/instagram-reel-scraper'
+const TIKTOK_ACTOR_ID = env.TIKTOK_ACTOR_ID || 'clockworks/tiktok-scraper'
 
 const BUCKET = 'thumbnails'
 
+function isTikTok(url) {
+  return url.includes('tiktok.com')
+}
+
 async function fetchThumbnailUrl(videoLink) {
-  const run = await apify.actor(APIFY_ACTOR_ID).call({
-    username: [videoLink],
-    resultsLimit: 1,
-  })
+  const actorId = isTikTok(videoLink) ? TIKTOK_ACTOR_ID : INSTAGRAM_ACTOR_ID
+  const input = isTikTok(videoLink)
+    ? { postURLs: [videoLink], resultsPerPage: 1 }
+    : { username: [videoLink], resultsLimit: 1 }
+  const run = await apify.actor(actorId).call(input)
   const { items } = await apify.dataset(run.defaultDatasetId).listItems()
   const item = items[0]
-  return item?.displayUrl || null
+  // videoMeta.coverUrl is clockworks/tiktok-scraper's thumbnail field.
+  return item?.displayUrl || item?.videoMeta?.coverUrl || null
 }
 
 async function downloadImage(url) {

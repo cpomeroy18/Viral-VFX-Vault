@@ -4,9 +4,8 @@
 // counts, fetch fresh stats from Apify and save them onto the effect row.
 // Same pattern as backfill-thumbnails.js — this is the stats equivalent.
 //
-// Instagram-only, same as backfill-thumbnails.js: apify/instagram-reel-scraper
-// can't process TikTok links, so any effect with a TikTok video_link will
-// always fail here. Needs a different approach (different actor) for those.
+// Works for both Instagram and TikTok links (same actor/field-name choices
+// as add-effect.js's scrape()).
 //
 // Run locally only. Never deploy this file or its .env to Vercel.
 //
@@ -49,13 +48,19 @@ const apify = new ApifyClient({ token: env.APIFY_TOKEN })
 
 // Change this if you use a different scraper actor than Apify's
 // general-purpose Instagram Reel Scraper.
-const APIFY_ACTOR_ID = 'apify/instagram-reel-scraper'
+const INSTAGRAM_ACTOR_ID = 'apify/instagram-reel-scraper'
+const TIKTOK_ACTOR_ID = env.TIKTOK_ACTOR_ID || 'clockworks/tiktok-scraper'
+
+function isTikTok(url) {
+  return url.includes('tiktok.com')
+}
 
 async function fetchStats(videoLink) {
-  const run = await apify.actor(APIFY_ACTOR_ID).call({
-    username: [videoLink],
-    resultsLimit: 1,
-  })
+  const actorId = isTikTok(videoLink) ? TIKTOK_ACTOR_ID : INSTAGRAM_ACTOR_ID
+  const input = isTikTok(videoLink)
+    ? { postURLs: [videoLink], resultsPerPage: 1 }
+    : { username: [videoLink], resultsLimit: 1 }
+  const run = await apify.actor(actorId).call(input)
   const { items } = await apify.dataset(run.defaultDatasetId).listItems()
   const item = items[0]
   if (!item) return null
@@ -63,9 +68,11 @@ async function fetchStats(videoLink) {
     // videoPlayCount is the public "plays" number shown on the reel;
     // videoViewCount is a separate, smaller Apify field — videoPlayCount
     // is what we use for views_count (same choice made in add-effect.js).
-    viewsCount: item.videoPlayCount ?? item.videoViewCount ?? null,
-    likesCount: item.likesCount ?? null,
-    commentsCount: item.commentsCount ?? null,
+    // playCount/diggCount/commentCount are clockworks/tiktok-scraper's
+    // equivalents.
+    viewsCount: item.videoPlayCount ?? item.playCount ?? item.videoViewCount ?? null,
+    likesCount: item.likesCount ?? item.diggCount ?? null,
+    commentsCount: item.commentsCount ?? item.commentCount ?? null,
   }
 }
 

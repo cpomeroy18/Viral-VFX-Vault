@@ -18,7 +18,8 @@ function formatPostedDate(isoString) {
 export default function EffectCard({ effect }) {
   const tags = splitTechniques(effect.main_tool_used)
   const useCases = splitTechniques(effect.use_case)
-  const tutorialUrl = effect.best_match_tutorial_url || effect.reference_tutorial
+  const tutorialUrl = effect.reference_tutorial
+  const bestMatchUrl = effect.best_match_tutorial_url
 
   const stats = [
     { icon: Eye, value: formatCount(effect.views_count) },
@@ -113,21 +114,35 @@ export default function EffectCard({ effect }) {
           </div>
         )}
 
-        {tutorialUrl ? (
-          <a
-            href={tutorialUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-auto flex items-center justify-between gap-2 text-xs font-medium bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-md px-3 py-2 transition-colors"
-          >
-            Watch the tutorial
-            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-          </a>
-        ) : (
-          <div className="mt-auto text-xs font-medium text-[var(--ink-dim)] bg-[var(--panel-2)]/50 border border-[var(--line)] rounded-md px-3 py-2 cursor-not-allowed">
-            No tutorial yet
-          </div>
-        )}
+        <div className="mt-auto flex flex-col gap-2">
+          {tutorialUrl ? (
+            <a
+              href={tutorialUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 text-xs font-medium bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-md px-3 py-2 transition-colors"
+            >
+              Watch the tutorial
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </a>
+          ) : (
+            <div className="text-xs font-medium text-[var(--ink-dim)] bg-[var(--panel-2)]/50 border border-[var(--line)] rounded-md px-3 py-2 cursor-not-allowed">
+              No tutorial yet
+            </div>
+          )}
+
+          {bestMatchUrl && (
+            <a
+              href={bestMatchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-2 text-xs font-medium text-[var(--ink-dim)] hover:text-[var(--ink)] border border-[var(--line)] hover:bg-[var(--panel-2)] rounded-md px-3 py-2 transition-colors"
+            >
+              See it in action
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </a>
+          )}
+        </div>
       </div>
     </div>
   )
