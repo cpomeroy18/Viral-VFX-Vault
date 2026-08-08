@@ -43,6 +43,14 @@ Same pattern as the thumbnail backfill: finds `effects` rows missing `views_coun
 
 `scripts/add-effect.js` also saves these three columns automatically (via the same `videoPlayCount` mapping) on every new effect it inserts or updates, so this backfill script is only needed for effects added before stats tracking existed.
 
+## Date-posted backfill script (`scripts/backfill-date-posted.js`)
+
+Same pattern again: finds `effects` rows missing `date_posted` (when the original video was posted, distinct from `date_added` which is when it was added to the vault), scrapes it via Apify (`apify/instagram-reel-scraper`, field `timestamp`), and saves it back. Instagram-only, same TikTok limitation as the other two backfill scripts.
+
+**Known persistently-failing rows**: as of the last backfill (106 effects processed), 19 still have null `date_posted` — the same 8 TikTok + 11 unresolvable-Instagram links as the stats and thumbnail backfills. Unlike `backfill-stats.js`, this script correctly counts "Apify returned no timestamp" as a real failure rather than silently saving null as a false success, so its reported success/fail counts can be trusted directly.
+
+`scripts/add-effect.js` also saves `date_posted` automatically (via the same `timestamp` field) on every new effect it inserts or updates, so this backfill script is only needed for effects added before date-posted tracking existed.
+
 ## Repo hygiene
 
 - `.gitignore` uses a broad `.env*` rule (added by the Vercel CLI on `vercel link`) with explicit re-includes for template files: `!.env.example` and `!*/.env.*.example`. Keep these re-includes if editing `.gitignore` — otherwise new `.env.*.example` templates silently stop being committable.

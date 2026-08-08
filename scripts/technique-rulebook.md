@@ -62,7 +62,21 @@ Most effects use ONE main technique; some combine two (tag main + backup). Multi
 **Distinguisher from Masking:** Masking is typically a shape drawn once to reveal/hide part of the frame. Keyframes is about *animating* a property's change over time — very often the thing doing the combining (e.g. "Masking, Keyframes" = a mask whose position/size itself moves). Expect this combo often.
 **Exemplar:** horizontal video reframed inside a vertical crop; each time the subject jumps, the crop shifts down slightly and holds until the next jump.
 
-## 9. Color Change
+## 10. Practical Effect
+**What it is:** The effect is achieved physically, in-camera, at the time of filming — no software manipulation involved (props, camera tricks, forced perspective, lighting, physical rigs).
+**Tells:** the "how" is explainable by physics/staging rather than editing — nothing was cut, masked, keyframed, or composited; what you see is what the camera actually recorded.
+**Distinguisher:** if removing all editing software from the equation would still produce the same visual, it's Practical Effect. If the trick lives in the edit, it's one of the other techniques.
+
+## 11. Template
+**What it is:** The video was built using an Instagram Edits app template — a reusable structure other creators plug their own footage into.
+**Tells:** a "Template" tag/badge appears directly on the video itself while playing (tappable, opens in the Edits app). This is a visual on-screen UI element, NOT something present in the caption or metadata.
+**Important:** this tag cannot be detected from scraped data (caption/metadata) — it must always be supplied manually by Colin after watching the video. Never AI-guess this one; treat it as a required-manual field. No generic tutorial exists for this technique — leave reference_tutorial blank rather than guessing a link.
+
+## 12. Stop Motion
+**What it is:** A sequence of still frames/images played in succession to simulate motion, rather than continuous video footage.
+**Tells:** movement looks segmented/staccato rather than fluid; the video is built from a series of photos rather than a single continuous take.
+
+## 13. Color Change
 **What it is:** Colors are deliberately altered mid-clip — recoloring a specific object or shifting the whole frame's color — usually as a reveal or transition.
 **Tells (any):** an object changes color over time (shirt blue→red, outfit green→red); a color shift triggered by a touch/gesture; a full-scene color/grade shift happening in the *middle* of the video (not a static filter).
 **Signature:** color that *changes* during the clip. A constant filter over the whole video does NOT count — it's the transition from one color state to another.
@@ -71,21 +85,10 @@ Most effects use ONE main technique; some combine two (tag main + backup). Multi
 
 ---
 
-## Niche
-The type of creator/business the video is for. Single-value — pick exactly one, "Other" if nothing fits.
-
-Fitness, Beauty/Skincare, Fashion, Food/Cooking, Real Estate, Restaurant/Bar, Tattoo Shop, Barber/Salon, Travel, Comedy, Personal Finance, Home/DIY, Automotive, Pets, Parenting/Family, Tech/App, Music, Sports, Video/Editing, Storytelling/Personality, Vlog/Personal, Other
-
-## Use Case
-What the effect is doing for the video. Can be multiple — tag every one that clearly applies.
-
-Hook/Attention-Grabber, Outfit/Clothing Reveal, Product Showcase, Before/After Reveal, Comedic Punchline, Storytelling Beat, Transition Between Scenes, Spice-Up/Rewatch Value, Call-to-Action Moment
-
----
-
 ## Base-rate notes for the AI (reduces false positives)
 - **Common:** Match Cut, Masking, Remove BG, Speed Tool.
-- **Uncommon:** Green Screen, Reverse, Splice, Color Change, Keyframes — require a clear tell, don't guess them on weak evidence.
+- **Uncommon:** Green Screen, Reverse, Splice, Color Change, Keyframes, Practical Effect, Stop Motion — require a clear tell, don't guess them on weak evidence.
+- **Template is manual-only:** never AI-guess it. It can only be identified by watching the video for the on-screen "Template" badge, which scraped data never contains. If a row's technique is left blank for AI guessing, Template should never be among the suggestions.
 - Keyframes very often pairs with Masking (an animated mask) — expect the combo.
 - When torn between Remove BG and Green Screen → Remove BG.
 - A static color filter is NOT Color Change.

@@ -10,6 +10,9 @@ export const TECHNIQUES = {
   'Splice':        { hex: '#ff3ea5', label: 'Splice' },
   'Color Change':  { hex: '#3effe0', label: 'Color Change' },
   'Keyframes':     { hex: '#ffe63e', label: 'Keyframes' },
+  'Practical Effect': { hex: '#a3ff3e', label: 'Practical Effect' },
+  'Template':      { hex: '#6a3eff', label: 'Template' },
+  'Stop Motion':   { hex: '#ff3e7a', label: 'Stop Motion' },
 }
 
 export const DEFAULT_TECHNIQUE = { hex: '#6b6b70', label: 'Other' }

@@ -8,6 +8,13 @@ function formatCount(n) {
   return `${(n / divisor).toFixed(1).replace(/\.0$/, '')}${suffix}`
 }
 
+function formatPostedDate(isoString) {
+  if (!isoString) return null
+  const date = new Date(isoString)
+  if (Number.isNaN(date.getTime())) return null
+  return `Posted ${date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
+}
+
 export default function EffectCard({ effect }) {
   const tags = splitTechniques(effect.main_tool_used)
   const useCases = splitTechniques(effect.use_case)
@@ -18,6 +25,7 @@ export default function EffectCard({ effect }) {
     { icon: Heart, value: formatCount(effect.likes_count) },
     { icon: MessageCircle, value: formatCount(effect.comments_count) },
   ].filter((s) => s.value != null)
+  const postedLabel = formatPostedDate(effect.date_posted)
 
   return (
     <div className="group bg-[var(--panel)] border border-[var(--line)] rounded-lg overflow-hidden hover:border-[var(--ink-dim)] transition-colors flex flex-col">
@@ -93,7 +101,7 @@ export default function EffectCard({ effect }) {
           </div>
         )}
 
-        {stats.length > 0 && (
+        {(stats.length > 0 || postedLabel) && (
           <div className="flex items-center gap-3 font-mono text-[10px] text-[var(--ink-dim)]">
             {stats.map(({ icon: Icon, value }, i) => (
               <span key={i} className="flex items-center gap-1">
@@ -101,18 +109,25 @@ export default function EffectCard({ effect }) {
                 {value}
               </span>
             ))}
+            {postedLabel && <span className="ml-auto">{postedLabel}</span>}
           </div>
         )}
 
-        <a
-          href={tutorialUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-auto flex items-center justify-between gap-2 text-xs font-medium bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-md px-3 py-2 transition-colors"
-        >
-          Watch the tutorial
-          <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-        </a>
+        {tutorialUrl ? (
+          <a
+            href={tutorialUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-auto flex items-center justify-between gap-2 text-xs font-medium bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-md px-3 py-2 transition-colors"
+          >
+            Watch the tutorial
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+          </a>
+        ) : (
+          <div className="mt-auto text-xs font-medium text-[var(--ink-dim)] bg-[var(--panel-2)]/50 border border-[var(--line)] rounded-md px-3 py-2 cursor-not-allowed">
+            No tutorial yet
+          </div>
+        )}
       </div>
     </div>
   )

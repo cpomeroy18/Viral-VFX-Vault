@@ -85,7 +85,14 @@ const BUCKET = 'thumbnails'
 const TECHNIQUES = [
   'Match Cut', 'Masking', 'Remove BG', 'Speed Tool',
   'Reverse', 'Green Screen', 'Splice', 'Color Change', 'Keyframes',
+  'Practical Effect', 'Template', 'Stop Motion',
 ]
+
+// Template can only be identified by watching for an on-screen badge —
+// scraped caption/metadata never contains it, so per technique-rulebook.md
+// it must always be supplied manually and should never be offered as an AI
+// guess.
+const AI_GUESSABLE_TECHNIQUES = TECHNIQUES.filter((t) => t !== 'Template')
 
 const NICHES = [
   'Fitness', 'Beauty/Skincare', 'Fashion', 'Food/Cooking', 'Real Estate',
@@ -140,6 +147,11 @@ async function scrape(url) {
     viewsCount: item.videoPlayCount ?? item.playCount ?? item.videoViewCount ?? null,
     likesCount: item.likesCount ?? item.diggCount ?? null,
     commentsCount: item.commentsCount ?? item.commentCount ?? null,
+    // item.timestamp (ISO string, e.g. "2026-05-11T10:22:04.000Z") is the
+    // verified field from apify/instagram-reel-scraper. createTimeISO/
+    // createTime are unverified TikTok-actor guesses — same caveat as the
+    // other clockworks/tiktok-scraper field names above.
+    postedAt: item.timestamp ?? item.createTimeISO ?? item.createTime ?? null,
   }
 }
 
@@ -155,14 +167,14 @@ ${caption || '(no caption available)'}
 
 Return this exact JSON shape:
 {
-  "techniques": [{"name": "<one of: ${TECHNIQUES.join(', ')}>", "confidence": <0-100>}],
+  "techniques": [{"name": "<one of: ${AI_GUESSABLE_TECHNIQUES.join(', ')}>", "confidence": <0-100>}],
   "skill_level": "<Easy|Medium|Advanced>",
   "niche": {"name": "<one of: ${NICHES.join(', ')}>", "confidence": <0-100>},
   "use_cases": [{"name": "<one of: ${USE_CASES.join(', ')}>", "confidence": <0-100>}],
   "reasoning": "<one sentence>"
 }
 
-"niche" is the type of creator/business the video is for — pick exactly one, "Other" if nothing fits. "use_cases" is what the effect is doing for the video (can be more than one). Only include techniques/use_cases you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing.`
+"niche" is the type of creator/business the video is for — pick exactly one, "Other" if nothing fits. "use_cases" is what the effect is doing for the video (can be more than one). Only include techniques/use_cases you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing. Never suggest "Template" — it can only be identified by watching the video for an on-screen badge, never from caption/metadata, so it's excluded from the list above entirely.`
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -311,6 +323,7 @@ async function processRow(raw) {
     views_count: scraped.viewsCount,
     likes_count: scraped.likesCount,
     comments_count: scraped.commentsCount,
+    date_posted: scraped.postedAt,
     niche: finalNiche || null,
     use_case: finalUseCases.join(', ') || null,
     // Only set when given — blank/missing means "leave untouched", not
