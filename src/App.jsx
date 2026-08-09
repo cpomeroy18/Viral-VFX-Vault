@@ -113,7 +113,17 @@ export default function App() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((effect) => (
-            <EffectCard key={effect.id} effect={effect} onRequireAuth={setPendingAction} />
+            <EffectCard
+              key={effect.id}
+              effect={effect}
+              // NOT onRequireAuth={setPendingAction} — useState setters treat
+              // a bare function argument as a functional updater and CALL it
+              // immediately with the previous state, which would fire the
+              // action (window.open) right away instead of storing it. The
+              // (action) => setPendingAction(() => action) wrapper stores the
+              // function itself as state via the updater's return value.
+              onRequireAuth={(action) => setPendingAction(() => action)}
+            />
           ))}
         </div>
       </main>
