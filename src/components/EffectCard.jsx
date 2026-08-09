@@ -15,11 +15,17 @@ function formatPostedDate(isoString) {
   return `Posted ${date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
 }
 
-export default function EffectCard({ effect }) {
+export default function EffectCard({ effect, onRequireAuth }) {
   const tags = splitTechniques(effect.main_tool_used)
   const useCases = splitTechniques(effect.use_case)
   const tutorialUrl = effect.reference_tutorial
   const bestMatchUrl = effect.best_match_tutorial_url
+
+  function gatedClick(e, url) {
+    if (localStorage.getItem('vfx_vault_authorized_email')) return
+    e.preventDefault()
+    onRequireAuth(() => window.open(url, '_blank', 'noopener,noreferrer'))
+  }
 
   const stats = [
     { icon: Eye, value: formatCount(effect.views_count) },
@@ -34,6 +40,7 @@ export default function EffectCard({ effect }) {
         href={effect.video_link}
         target="_blank"
         rel="noopener noreferrer"
+        onClick={(e) => gatedClick(e, effect.video_link)}
         className="relative aspect-[9/16] bg-[var(--panel-2)] flex items-center justify-center overflow-hidden"
       >
         {effect.thumbnail_url ? (
@@ -120,6 +127,7 @@ export default function EffectCard({ effect }) {
               href={tutorialUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => gatedClick(e, tutorialUrl)}
               className="flex items-center justify-between gap-2 text-xs font-medium bg-[var(--panel-2)] hover:bg-[var(--line)] border border-[var(--line)] rounded-md px-3 py-2 transition-colors"
             >
               Watch the tutorial
@@ -136,6 +144,7 @@ export default function EffectCard({ effect }) {
               href={bestMatchUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => gatedClick(e, bestMatchUrl)}
               className="flex items-center justify-between gap-2 text-xs font-medium text-[var(--ink-dim)] hover:text-[var(--ink)] border border-[var(--line)] hover:bg-[var(--panel-2)] rounded-md px-3 py-2 transition-colors"
             >
               See it in action

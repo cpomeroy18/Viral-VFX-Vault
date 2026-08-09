@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
 import { splitTechniques } from './lib/techniques'
 import EmailGate from './components/EmailGate'
+import LoginGate from './components/LoginGate'
 import FilterBar from './components/FilterBar'
 import EffectCard from './components/EffectCard'
 
@@ -10,6 +11,7 @@ export default function App() {
   const [effects, setEffects] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  const [pendingAction, setPendingAction] = useState(null)
 
   const [search, setSearch] = useState('')
   const [activeTechnique, setActiveTechnique] = useState(null)
@@ -57,6 +59,16 @@ export default function App() {
     <div className="min-h-screen">
       {!unlocked && <EmailGate onUnlock={() => setUnlocked(true)} />}
 
+      {pendingAction && (
+        <LoginGate
+          onClose={() => setPendingAction(null)}
+          onSuccess={() => {
+            pendingAction()
+            setPendingAction(null)
+          }}
+        />
+      )}
+
       <header className="scanlines border-b border-[var(--line)] px-4 py-10 text-center">
         <div className="font-mono text-xs text-[var(--rec)] tracking-widest mb-3">
           ● REC — VFX VAULT
@@ -101,7 +113,7 @@ export default function App() {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {filtered.map((effect) => (
-            <EffectCard key={effect.id} effect={effect} />
+            <EffectCard key={effect.id} effect={effect} onRequireAuth={setPendingAction} />
           ))}
         </div>
       </main>
