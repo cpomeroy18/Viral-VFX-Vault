@@ -5,6 +5,7 @@ import EmailGate from './components/EmailGate'
 import LoginGate from './components/LoginGate'
 import FilterBar from './components/FilterBar'
 import EffectCard from './components/EffectCard'
+import StatusBadges from './components/StatusBadges'
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(false)
@@ -12,6 +13,9 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [pendingAction, setPendingAction] = useState(null)
+  const [authorizedEmail, setAuthorizedEmail] = useState(
+    () => localStorage.getItem('vfx_vault_authorized_email')
+  )
 
   const [search, setSearch] = useState('')
   const [activeTechnique, setActiveTechnique] = useState(null)
@@ -64,10 +68,24 @@ export default function App() {
           onClose={() => setPendingAction(null)}
           onSuccess={() => {
             pendingAction()
+            setAuthorizedEmail(localStorage.getItem('vfx_vault_authorized_email'))
             setPendingAction(null)
           }}
         />
       )}
+
+      <StatusBadges
+        browsingUnlocked={unlocked}
+        authorizedEmail={authorizedEmail}
+        onLogoutBrowsing={() => {
+          localStorage.removeItem('vfx_vault_email')
+          setUnlocked(false)
+        }}
+        onLogoutAuthorized={() => {
+          localStorage.removeItem('vfx_vault_authorized_email')
+          setAuthorizedEmail(null)
+        }}
+      />
 
       <header className="scanlines border-b border-[var(--line)] px-4 py-10 text-center">
         <div className="font-mono text-xs text-[var(--rec)] tracking-widest mb-3">
