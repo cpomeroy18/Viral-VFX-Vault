@@ -26,6 +26,16 @@ export default function EmailGate({ onUnlock }) {
       return
     }
 
+    // Sync to GoHighLevel as a lead — deliberately fire-and-forget. Not
+    // awaited, and its outcome is never checked, so a slow/broken GHL sync
+    // can never delay or block someone from getting into the vault. See
+    // api/ghl-add-lead.js for where failures actually get logged.
+    fetch('/api/ghl-add-lead', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).catch((err) => console.error('GHL lead sync failed:', err))
+
     localStorage.setItem('vfx_vault_email', email)
     setStatus('idle')
     onUnlock(email)
