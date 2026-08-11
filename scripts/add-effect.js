@@ -99,13 +99,13 @@ const NICHES = [
   'Restaurant/Bar', 'Tattoo Shop', 'Barber/Salon', 'Travel', 'Comedy',
   'Personal Finance', 'Home/DIY', 'Automotive', 'Pets', 'Parenting/Family',
   'Tech/App', 'Music', 'Sports', 'Video/Editing', 'Storytelling/Personality',
-  'Vlog/Personal', 'Other',
+  'Vlog/Personal', 'Local Business', 'Product Showcase', 'Other',
 ]
 
 const USE_CASES = [
-  'Hook/Attention-Grabber', 'Outfit/Clothing Reveal', 'Product Showcase',
-  'Before/After Reveal', 'Comedic Punchline', 'Storytelling Beat',
-  'Transition Between Scenes', 'Spice-Up/Rewatch Value', 'Call-to-Action Moment',
+  'Visual Hook', 'Outfit/Clothing Reveal', 'Product Showcase',
+  'Before/After Reveal', 'Comedic Punchline', 'Storytelling', 'Transitions',
+  'Magic/Illusion', 'Travel', 'Creative Edits',
 ]
 
 // Matches a manually-typed value to its canonical casing (e.g. "masking" ->
@@ -118,6 +118,71 @@ function makeCanonicalizer(list) {
 const canonicalizeTechnique = makeCanonicalizer(TECHNIQUES)
 const canonicalizeNiche = makeCanonicalizer(NICHES)
 const canonicalizeUseCase = makeCanonicalizer(USE_CASES)
+
+function levenshtein(a, b) {
+  const dp = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0))
+  for (let i = 0; i <= a.length; i++) dp[i][0] = i
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+    }
+  }
+  return dp[a.length][b.length]
+}
+
+function normalizeForMatch(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, '')
+}
+
+// Validates a manually-typed niche/use_case value against its fixed list.
+// Unlike technique's canonicalizer (which silently passes through anything
+// with no match), this never lets an off-list value through unnoticed:
+//   - exact match (case-insensitive)              -> use as-is, silent
+//   - normalized match (spacing/punctuation only)  -> auto-correct + note
+//     e.g. "Realestate" -> "Real Estate"
+//   - one clear closest fuzzy match (typo)         -> auto-correct + note
+//   - "new:X" prefix                               -> explicit opt-in to
+//     save X as a genuinely new, off-list category
+//   - anything else (ambiguous / not close)        -> flagged for manual
+//     review, not saved
+function resolveAgainstList(rawInput, list) {
+  const trimmed = rawInput.trim()
+
+  const newMatch = /^new:(.*)$/i.exec(trimmed)
+  if (newMatch) {
+    return { value: newMatch[1].trim(), corrected: null, needsReview: false }
+  }
+
+  const exact = list.find((n) => n.toLowerCase() === trimmed.toLowerCase())
+  if (exact) return { value: exact, corrected: null, needsReview: false }
+
+  const normInput = normalizeForMatch(trimmed)
+  const normMatch = list.find((n) => normalizeForMatch(n) === normInput)
+  if (normMatch) {
+    return { value: normMatch, corrected: { from: trimmed, to: normMatch }, needsReview: false }
+  }
+
+  const distances = list
+    .map((n) => ({ n, d: levenshtein(normInput, normalizeForMatch(n)) }))
+    .sort((a, b) => a.d - b.d)
+  const [best, secondBest] = distances
+  const maxDistance = Math.max(2, Math.floor(trimmed.length * 0.3))
+  if (best.d <= maxDistance && (!secondBest || secondBest.d > best.d)) {
+    return { value: best.n, corrected: { from: trimmed, to: best.n }, needsReview: false }
+  }
+
+  return { value: null, corrected: null, needsReview: true, typedValue: trimmed }
+}
+
+// Validates a manually-typed niche/use_case against its fixed list. Unlike
+// technique's canonicalizer (which silently passes through anything with no
+// match), this never lets an off-list value through unnoticed — see
+// resolveAgainstList for the exact/normalized/fuzzy/"new:"/flag tiers.
+const resolveNiche = (rawInput) => resolveAgainstList(rawInput, NICHES)
+const resolveUseCase = (rawInput) => resolveAgainstList(rawInput, USE_CASES)
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 
@@ -178,7 +243,7 @@ Return this exact JSON shape:
   "reasoning": "<one sentence>"
 }
 
-"niche" is the type of creator/business the video is for — pick exactly one, "Other" if nothing fits. "use_cases" is what the effect is doing for the video (can be more than one). Only include techniques/use_cases you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing. Never suggest "Template" — it can only be identified by watching the video for an on-screen badge, never from caption/metadata, so it's excluded from the list above entirely.`
+"niche" is the type of creator/business the video is for — pick exactly one, "Other" if nothing fits. "use_cases" is what the effect is doing for the video (can be more than one) — use "Creative Edits" as a catch-all if nothing else on the list fits, same idea as "Other" for niche. Only include techniques/use_cases you have real signal for from the caption. If the caption gives little to go on, say so honestly with low confidence rather than guessing. Never suggest "Template" — it can only be identified by watching the video for an on-screen badge, never from caption/metadata, so it's excluded from the list above entirely.`
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -273,6 +338,45 @@ async function processRow(raw) {
   let skillGuessed = false
   let nicheGuessed = false
   let useCaseGuessed = false
+  let nicheNeedsReview = false
+  let nicheTypedValue = null
+  let useCaseNeedsReview = []
+
+  // Manually-typed niche gets validated against the fixed list right away —
+  // AI-guessed niche doesn't need this since the prompt already constrains
+  // it to an exact list value.
+  if (givenNiche) {
+    const resolution = resolveNiche(givenNiche)
+    finalNiche = resolution.value || ''
+    if (resolution.corrected) {
+      console.log(`  Niche corrected: "${resolution.corrected.from}" → "${resolution.corrected.to}"`)
+    }
+    if (resolution.needsReview) {
+      nicheNeedsReview = true
+      nicheTypedValue = resolution.typedValue
+      console.log(`  Niche "${resolution.typedValue}" isn't on the list and wasn't a confident match — flagged for review, left blank. Prefix with "new:" to save it as a new category.`)
+    }
+  }
+
+  // Same validation per manually-typed use_case entry (each ";"-separated
+  // token is resolved independently) — a row can still save its other
+  // valid use_case(s) even if one entry gets flagged.
+  if (givenUseCases.length > 0) {
+    const resolvedUseCases = []
+    for (const typed of givenUseCases) {
+      const resolution = resolveUseCase(typed)
+      if (resolution.corrected) {
+        console.log(`  Use case corrected: "${resolution.corrected.from}" → "${resolution.corrected.to}"`)
+      }
+      if (resolution.needsReview) {
+        useCaseNeedsReview.push(resolution.typedValue)
+        console.log(`  Use case "${resolution.typedValue}" isn't on the list and wasn't a confident match — flagged for review, not saved. Prefix with "new:" to save it as a new category.`)
+      } else if (resolution.value) {
+        resolvedUseCases.push(resolution.value)
+      }
+    }
+    finalUseCases = resolvedUseCases
+  }
 
   const hasCaption = !!(scraped.caption && scraped.caption.trim())
   const hasThumbnail = !!scraped.thumbnailUrl
@@ -384,6 +488,10 @@ async function processRow(raw) {
     niche: finalNiche,
     useCases: finalUseCases,
     aiGuessed,
+    nicheNeedsReview,
+    nicheTypedValue,
+    useCaseNeedsReview,
+    rawRow: raw,
   }
 }
 
@@ -424,6 +532,26 @@ async function main() {
     console.log(`\n${aiGuessed.length} AI-guessed — spot-check these:`)
     for (const r of aiGuessed) {
       console.log(`  - ${r.title} (${r.url})`)
+    }
+  }
+
+  const nicheNeedsReview = results.filter((r) => r.nicheNeedsReview)
+  if (nicheNeedsReview.length > 0) {
+    console.log(`\n${nicheNeedsReview.length} niche value(s) need review — fix and re-paste these rows:`)
+    for (const r of nicheNeedsReview) {
+      console.log(`  "${r.title}" (${r.url})`)
+      console.log(`    you typed: "${r.nicheTypedValue}"`)
+      console.log(`    row to fix and re-paste:\n    ${r.rawRow}`)
+    }
+  }
+
+  const useCaseNeedsReview = results.filter((r) => r.useCaseNeedsReview.length > 0)
+  if (useCaseNeedsReview.length > 0) {
+    console.log(`\n${useCaseNeedsReview.length} row(s) with use_case value(s) needing review — fix and re-paste these rows:`)
+    for (const r of useCaseNeedsReview) {
+      console.log(`  "${r.title}" (${r.url})`)
+      console.log(`    you typed: ${r.useCaseNeedsReview.map((v) => `"${v}"`).join(', ')}`)
+      console.log(`    row to fix and re-paste:\n    ${r.rawRow}`)
     }
   }
 
