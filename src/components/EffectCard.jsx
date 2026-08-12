@@ -1,5 +1,5 @@
 import { ExternalLink, Play, Eye, Heart, MessageCircle } from 'lucide-react'
-import { splitTechniques, techniqueStyle } from '../lib/techniques'
+import { splitList, techniqueStyle } from '../lib/techniques'
 
 function formatCount(n) {
   if (n == null) return null
@@ -16,8 +16,8 @@ function formatPostedDate(isoString) {
 }
 
 export default function EffectCard({ effect, onRequireAuth }) {
-  const tags = splitTechniques(effect.main_tool_used)
-  const useCases = splitTechniques(effect.use_case)
+  const tags = splitList(effect.main_tool_used)
+  const useCases = splitList(effect.use_case)
   const tutorialUrl = effect.reference_tutorial
   const bestMatchUrl = effect.best_match_tutorial_url
 

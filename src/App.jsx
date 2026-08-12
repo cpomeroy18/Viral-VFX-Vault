@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from './lib/supabase'
-import { splitTechniques } from './lib/techniques'
+import { splitList } from './lib/techniques'
 import EmailGate from './components/EmailGate'
 import LoginGate from './components/LoginGate'
 import FilterBar from './components/FilterBar'
@@ -20,6 +20,8 @@ export default function App() {
   const [search, setSearch] = useState('')
   const [activeTechnique, setActiveTechnique] = useState(null)
   const [activeSkill, setActiveSkill] = useState(null)
+  const [activeNiches, setActiveNiches] = useState([])
+  const [activeUseCases, setActiveUseCases] = useState([])
 
   useEffect(() => {
     const saved = localStorage.getItem('vfx_vault_email')
@@ -43,21 +45,41 @@ export default function App() {
     loadEffects()
   }, [])
 
+  // Derived from live data rather than a hardcoded list — keeps this in
+  // sync with scripts/add-effect.js's NICHES/USE_CASES automatically, and
+  // never shows an option with zero matching effects.
+  const nicheOptions = useMemo(() => {
+    const values = new Set(effects.map((e) => e.niche).filter(Boolean))
+    return [...values].sort()
+  }, [effects])
+
+  const useCaseOptions = useMemo(() => {
+    const values = new Set(effects.flatMap((e) => splitList(e.use_case)))
+    return [...values].sort()
+  }, [effects])
+
   const filtered = useMemo(() => {
     return effects.filter((e) => {
       if (search && !e.title?.toLowerCase().includes(search.toLowerCase())) {
         return false
       }
       if (activeTechnique) {
-        const tags = splitTechniques(e.main_tool_used)
+        const tags = splitList(e.main_tool_used)
         if (!tags.includes(activeTechnique)) return false
       }
       if (activeSkill && e.skill_level !== activeSkill) {
         return false
       }
+      if (activeNiches.length > 0 && !activeNiches.includes(e.niche)) {
+        return false
+      }
+      if (activeUseCases.length > 0) {
+        const useCases = splitList(e.use_case)
+        if (!useCases.some((uc) => activeUseCases.includes(uc))) return false
+      }
       return true
     })
-  }, [effects, search, activeTechnique, activeSkill])
+  }, [effects, search, activeTechnique, activeSkill, activeNiches, activeUseCases])
 
   return (
     <div className="min-h-screen">
@@ -107,6 +129,12 @@ export default function App() {
         onTechnique={setActiveTechnique}
         activeSkill={activeSkill}
         onSkill={setActiveSkill}
+        nicheOptions={nicheOptions}
+        activeNiches={activeNiches}
+        onNiches={setActiveNiches}
+        useCaseOptions={useCaseOptions}
+        activeUseCases={activeUseCases}
+        onUseCases={setActiveUseCases}
         count={filtered.length}
       />
 

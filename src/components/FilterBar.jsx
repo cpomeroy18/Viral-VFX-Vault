@@ -1,5 +1,6 @@
 import { Search } from 'lucide-react'
 import { TECHNIQUES, SKILL_LEVELS } from '../lib/techniques'
+import MultiSelectFilter from './MultiSelectFilter'
 
 export default function FilterBar({
   search,
@@ -8,6 +9,12 @@ export default function FilterBar({
   onTechnique,
   activeSkill,
   onSkill,
+  nicheOptions,
+  activeNiches,
+  onNiches,
+  useCaseOptions,
+  activeUseCases,
+  onUseCases,
   count,
 }) {
   return (
@@ -64,6 +71,21 @@ export default function FilterBar({
               {level}
             </button>
           ))}
+
+          <span className="w-px h-4 bg-[var(--line)] mx-1" />
+
+          <MultiSelectFilter
+            label="Niche"
+            options={nicheOptions}
+            selected={activeNiches}
+            onChange={onNiches}
+          />
+          <MultiSelectFilter
+            label="Use Case"
+            options={useCaseOptions}
+            selected={activeUseCases}
+            onChange={onUseCases}
+          />
 
           <span className="ml-auto font-mono text-[11px] text-[var(--ink-dim)]">
             {count} EFFECT{count === 1 ? '' : 'S'}

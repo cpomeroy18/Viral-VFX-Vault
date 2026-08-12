@@ -21,9 +21,11 @@ export function techniqueStyle(name) {
   return TECHNIQUES[name] || DEFAULT_TECHNIQUE
 }
 
-export function splitTechniques(mainToolField) {
-  if (!mainToolField) return []
-  return mainToolField.split(',').map((t) => t.trim()).filter(Boolean)
+// Generic comma-list splitter — used for technique, use_case, and now
+// filter-option derivation. Not technique-specific despite where it lives.
+export function splitList(field) {
+  if (!field) return []
+  return field.split(',').map((t) => t.trim()).filter(Boolean)
 }
 
 export const SKILL_LEVELS = ['Easy', 'Medium', 'Advanced']
