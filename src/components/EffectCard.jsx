@@ -1,4 +1,5 @@
-import { ExternalLink, Play, Eye, Heart, MessageCircle } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ExternalLink, Play, Eye, Heart, MessageCircle, ChevronDown } from 'lucide-react'
 import { splitList, techniqueStyle } from '../lib/techniques'
 
 function formatCount(n) {
@@ -20,6 +21,27 @@ export default function EffectCard({ effect, onRequireAuth }) {
   const useCases = splitList(effect.use_case)
   const tutorialUrl = effect.reference_tutorial
   const bestMatchUrl = effect.best_match_tutorial_url
+
+  const [noteOpen, setNoteOpen] = useState(false)
+  const noteRef = useRef(null)
+
+  useEffect(() => {
+    if (!noteOpen) return
+    function handleOutside(e) {
+      if (noteRef.current && !noteRef.current.contains(e.target)) {
+        setNoteOpen(false)
+      }
+    }
+    function handleEscape(e) {
+      if (e.key === 'Escape') setNoteOpen(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [noteOpen])
 
   function gatedClick(e, url) {
     if (localStorage.getItem('vfx_vault_authorized_email')) return
@@ -118,6 +140,29 @@ export default function EffectCard({ effect, onRequireAuth }) {
               </span>
             ))}
             {postedLabel && <span className="ml-auto">{postedLabel}</span>}
+          </div>
+        )}
+
+        {effect.notes && (
+          <div className="relative" ref={noteRef}>
+            <button
+              type="button"
+              onClick={() => setNoteOpen((v) => !v)}
+              className="flex items-center gap-1.5 font-mono text-[10px] text-[var(--ink-dim)] hover:text-[var(--ink)] transition-colors"
+            >
+              Notes
+              <ChevronDown className="w-3 h-3" />
+            </button>
+
+            {noteOpen && (
+              // w-full (not a fixed width) so this can never exceed the
+              // card's own content width — the card has overflow-hidden
+              // for the thumbnail's rounded corners, which would silently
+              // clip a popover wider than the card instead of wrapping it.
+              <div className="absolute bottom-full left-0 mb-2 w-full max-h-64 overflow-y-auto bg-[var(--panel)] border border-[var(--line)] rounded-md shadow-lg z-40 p-3 text-xs text-[var(--ink)] leading-relaxed whitespace-pre-wrap">
+                {effect.notes}
+              </div>
+            )}
           </div>
         )}
 

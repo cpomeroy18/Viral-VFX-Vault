@@ -2,9 +2,9 @@
 //
 // The core "add new effect" pipeline:
 //   1. You paste rows: link, technique(s), skill, best_match_tutorial_url,
-//      niche, use_case(s) (everything but the link is optional) — comma- or
-//      tab-separated (tab-separated works with a direct paste from a
-//      spreadsheet)
+//      niche, use_case(s), notes (everything but the link is optional) —
+//      comma- or tab-separated (tab-separated works with a direct paste
+//      from a spreadsheet)
 //   2. Each link gets scraped via Apify (caption, thumbnail)
 //   3. If technique/skill/niche/use_case were given on the row, they're used
 //      as-is. Any left blank get filled in by Claude reading the caption
@@ -35,11 +35,16 @@
 //   skip it while still supplying a later column, as in the last example
 //   above which skips best_match_tutorial_url.)
 //   Re-pasting a link that's already saved updates that row instead of
-//   duplicating it — handy for adding just a best_match_tutorial_url later.
+//   duplicating it — handy for adding just a best_match_tutorial_url or
+//   notes later.
 //   Note: technique/skill/niche/use_case work differently — leaving those
 //   blank still triggers a fresh AI guess that overwrites the existing
 //   value (see below), so repeat the existing value on the row if you only
-//   want to add a tutorial URL.
+//   want to add a tutorial URL or notes.
+//   notes is manual-only — never AI-guessed, blank always just stays blank.
+//   It's also free text, so it's the one field where a comma inside the
+//   note itself will break a comma-separated row; stick to tab-separated
+//   pastes if a note might contain a comma.
 //   Blank line to finish and start processing.
 
 import { createClient } from '@supabase/supabase-js'
@@ -289,14 +294,16 @@ async function uploadThumbnail(effectId, imageBuffer) {
 }
 
 // Row format: link, technique(s), skill, best_match_tutorial_url, niche,
-// use_case(s) — all but the link are optional. Separator is a tab if the
-// row has one (spreadsheet paste), else a comma. Multiple values within the
-// technique or use_case fields are always ";"-separated, regardless of the
-// row separator, so they don't collide with a comma-separated row. niche is
-// single-value, like skill.
+// use_case(s), notes — all but the link are optional. Separator is a tab if
+// the row has one (spreadsheet paste), else a comma. Multiple values within
+// the technique or use_case fields are always ";"-separated, regardless of
+// the row separator, so they don't collide with a comma-separated row.
+// niche is single-value, like skill. notes is free text and manual-only —
+// never AI-guessed — so a comma inside a note will break a comma-separated
+// row; stick to tab-separated pastes if that's a risk.
 function parseRow(raw) {
   const sep = raw.includes('\t') ? '\t' : ','
-  const [urlRaw, techniqueRaw, skillRaw, bestMatchTutorialRaw, nicheRaw, useCaseRaw] = raw.split(sep)
+  const [urlRaw, techniqueRaw, skillRaw, bestMatchTutorialRaw, nicheRaw, useCaseRaw, notesRaw] = raw.split(sep)
   const url = (urlRaw || '').trim()
   const techniques = (techniqueRaw || '')
     .split(';')
@@ -309,13 +316,14 @@ function parseRow(raw) {
     .split(';')
     .map((u) => u.trim())
     .filter(Boolean)
-  return { url, techniques, skill, bestMatchTutorialUrl, niche, useCases }
+  const notes = (notesRaw || '').trim()
+  return { url, techniques, skill, bestMatchTutorialUrl, niche, useCases, notes }
 }
 
 async function processRow(raw) {
   const {
     url, techniques: givenTechniques, skill: givenSkill, bestMatchTutorialUrl,
-    niche: givenNiche, useCases: givenUseCases,
+    niche: givenNiche, useCases: givenUseCases, notes,
   } = parseRow(raw)
   if (!url) {
     console.log(`  Skipping unparseable row: "${raw}"`)
@@ -455,6 +463,8 @@ async function processRow(raw) {
     // already trims it, but a leading/trailing space here would break the
     // link the same way as in reference_tutorial above).
     ...(bestMatchTutorialUrl ? { best_match_tutorial_url: bestMatchTutorialUrl.trim() } : {}),
+    // Same leave-untouched-if-blank pattern — manual-only, never AI-guessed.
+    ...(notes ? { notes: notes.trim() } : {}),
   }
 
   const { data: saved, error: saveError } = isUpdate
@@ -516,7 +526,7 @@ function readLinesUntilBlank(rl) {
 }
 
 async function main() {
-  console.log('Paste rows as "link, technique(s), skill, best_match_tutorial_url, niche, use_case(s)" (comma- or tab-separated; everything but the link is optional). Blank line when done:\n')
+  console.log('Paste rows as "link, technique(s), skill, best_match_tutorial_url, niche, use_case(s), notes" (comma- or tab-separated; everything but the link is optional). Blank line when done:\n')
   const rows = await readLinesUntilBlank(rl)
 
   const results = []
